@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Local Serial Water Monitor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; margin: 0; background-color: #1e1e2f; color: #f0f0f0; }
+    header { padding: 12px 16px; border-bottom: 1px solid #ccc; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    main { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 12px; }
+    .panel { border: 1px solid #ccc; border-radius: 8px; padding: 12px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    label { font-size: 0.9rem; }
+    select, input[type="text"], button { padding: 6px 10px; font-size: 0.95rem; }
+    textarea { width: 100%; height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.4; }
+    .badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fff; /* white text for contrast */
+}
+
+.badge.connected {
+  background-color: #28a745; /* green */
+}
+
+.badge.disconnected {
+  background-color: #dc3545; /* red */
+}
+    .ok { background: #e6ffe6; }
+    .warn { background: #fff7e6; }
+    .err { background: #ffe9e9; }
+    .grow { flex: 1; }
+    .counter { font-variant-numeric: tabular-nums; }
+    .small { font-size: 0.85rem; opacity: 0.8; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 768px) { .grid2 { grid-template-columns: 1fr; } }
+	.command-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.group h3 {
+  margin-bottom: 8px;
+  font-size: 1rem;
+  color: #ffc107;
+}
+.group button {
+  display: block;
+  width: 100%;
+  margin: 4px 0;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  background: #2a2a3d;
+  color: #f0f0f0;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+}
+/* Tooltip with 5s delay and pulse animation */
+.group button:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: -36px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  animation: showTooltip 0s linear 5s forwards, pulseTooltip 1.5s ease-in-out 5s infinite;
+}
+
+@keyframes showTooltip {
+  to { opacity: 1; }
+}
+
+@keyframes pulseTooltip {
+  0%   { transform: translateX(-50%) scale(1); }
+  50%  { transform: translateX(-50%) scale(1.05); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+.group button.flash {
+  background-color: #28a745; /* green flash */
+  color: #fff;
+  transition: background-color 0.3s ease;
+}
+  </style>
+</head>
+<body>
+  <header>
+    <button id="btnConnect">Connect</button>
+    <button id="btnDisconnect" disabled>Disconnect</button>
+    <label>Baud
+      <select id="baud">
+        <option>9600</option><option selected>115200</option>
+        <option>230400</option><option>460800</option><option>921600</option>
+      </select>
+    </label>
+    <span id="status" class="badge warn">Disconnected</span>
+    <span class="small">RX: <span id="rxBytes" class="counter">0</span> | TX: <span id="txBytes" class="counter">0</span> | Age: <span id="age" class="counter">—</span></span>
+    <span id="support" class="small"></span>
+  </header>
+
+  <main>
+    <div class="grid2">
+      <section class="panel">
+        <div class="row">
+          <label>View
+            <select id="viewMode">
+              <option value="string" selected>String</option>
+              <option value="hex">Hex bytes</option>
+            </select>
+          </label>
+          <label>Display
+            <select id="displayMode">
+              <option value="scroll" selected>Scroll</option>
+              <option value="split">RX/TX split</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="timestamps" checked /> Timestamps</label>
+          <label><input type="checkbox" id="showNonprint" /> Show non-printables</label>
+          <button id="btnClear">Clear</button>
+          <button id="btnDownload" disabled>Download CSV</button>
+        </div>
+        <div id="display">
+          <textarea id="log" readonly></textarea>
+          <div id="split" style="display:none;">
+            <div class="row">
+              <label class="grow">RX</label><label class="grow">TX</label>
+            </div>
+            <div class="grid2">
+              <textarea id="logRx" readonly></textarea>
+              <textarea id="logTx" readonly></textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+  <div class="row">
+    <label>Send type
+      <select id="sendMode">
+        <option value="string" selected>String</option>
+        <option value="hex">Hex bytes</option>
+      </select>
+    </label>
+    <label>Line ending
+      <select id="lineEnding">
+        <option value="none" selected>None</option>
+        <option value="cr">CR</option>
+        <option value="lf">LF</option>
+        <option value="crlf">CR+LF</option>
+      </select>
+    </label>
+  </div>
+  <div class="row">
+    <input id="input" class="grow" type="text" placeholder="Type payload… (e.g. hello or 0A FF 01)" />
+    <button id="btnSend" disabled>Send</button>
+  </div>
+  <div id="error" class="small err" style="display:none;"></div>
+
+  <!-- Command Buttons grouped by category -->
+  <div class="command-groups">
+    <div class="group">
+      <h3>Calibration</h3>
+      <button data-cmd="CALIBRATE DRY" title="Save current ADC as dry baseline">CALIBRATE DRY</button>
+      <button data-cmd="CALIBRATE WET" title="Save current ADC as wet baseline">CALIBRATE WET</button>
+      <button data-cmd="SHOW CALIBRATION" title="Print dry and wet baseline values">SHOW CALIBRATION</button>
+      <button data-cmd="RESET CALIBRATION" title="Reset baselines to default (Dry=800, Wet=300)">RESET CALIBRATION</button>
+      <button data-cmd="AUTO DETECT" title="Auto-detect sensor type and set calibration defaults">AUTO DETECT</button>
+    </div>
+
+    <div class="group">
+      <h3>Diagnostics</h3>
+      <button data-cmd="CALIBRATION TEST" title="Run 20s loop printing raw ADC and moisture %">CALIBRATION TEST</button>
+      <button data-cmd="DIAGNOSE" title="Snapshot of sensor type, baselines, raw ADC, and moisture %">DIAGNOSE</button>
+      <button data-cmd="AVG TEST" title="Print rolling average moisture % (5 samples)">AVG TEST</button>
+      <button data-cmd="STATUS" title="Print full system status (soil, air humidity, temps, pump state)">STATUS</button>
+    </div>
+
+    <div class="group">
+      <h3>History</h3>
+      <button data-cmd="LOG HISTORY" title="Store 5 averaged moisture readings into EEPROM">LOG HISTORY</button>
+      <button data-cmd="SHOW HISTORY" title="Print stored moisture history from EEPROM">SHOW HISTORY</button>
+      <button data-cmd="CLEAR HISTORY" title="Reset EEPROM history to zero">CLEAR HISTORY</button>
+    </div>
+
+    <div class="group">
+      <h3>Pump Control</h3>
+      <button data-cmd="PUMP TEST ON" title="Manually switch pump ON">PUMP TEST ON</button>
+      <button data-cmd="PUMP TEST OFF" title="Manually switch pump OFF">PUMP TEST OFF</button>
+    </div>
+  </div>
+</section>
+    </div>
+  </main>
+
+<script>
+(() => {
+  const ui = {
+    btnConnect: document.getElementById('btnConnect'),
+    btnDisconnect: document.getElementById('btnDisconnect'),
+    btnSend: document.getElementById('btnSend'),
+    btnClear: document.getElementById('btnClear'),
+    btnDownload: document.getElementById('btnDownload'),
+    baud: document.getElementById('baud'),
+    status: document.getElementById('status'),
+    rxBytes: document.getElementById('rxBytes'),
+    txBytes: document.getElementById('txBytes'),
+    age: document.getElementById('age'),
+    support: document.getElementById('support'),
+    viewMode: document.getElementById('viewMode'),
+    displayMode: document.getElementById('displayMode'),
+    timestamps: document.getElementById('timestamps'),
+    showNonprint: document.getElementById('showNonprint'),
+    log: document.getElementById('log'),
+    logRx: document.getElementById('logRx'),
+    logTx: document.getElementById('logTx'),
+    split: document.getElementById('split'),
+    input: document.getElementById('input'),
+    sendMode: document.getElementById('sendMode'),
+    lineEnding: document.getElementById('lineEnding'),
+    error: document.getElementById('error'),
+  };
+
+  let port = null;
+  let reader = null;
+  let writer = null;
+  let keepReading = false;
+  let rxCount = 0;
+  let txCount = 0;
+  let lastRxTs = null;
+  const csv = [];
+  const textDecoder = new TextDecoder();
+  const textEncoder = new TextEncoder();
+
+  function setStatus(connected) {
+    if (connected) {
+      ui.status.textContent = 'Connected';
+      ui.status.className = 'badge connected';
+    } else {
+      ui.status.textContent = 'Disconnected';
+      ui.status.className = 'badge disconnected';
+    }
+    ui.btnDisconnect.disabled = !connected;
+    ui.btnSend.disabled = !connected;
+    ui.btnDownload.disabled = csv.length === 0;
+  }
+
+  function setError(msg) {
+    if (!msg) { ui.error.style.display = 'none'; ui.error.textContent = ''; return; }
+    ui.error.style.display = 'block';
+    ui.error.textContent = msg;
+  }
+
+  function updateAge() {
+    if (!lastRxTs) { ui.age.textContent = '—'; return; }
+    const secs = Math.floor((Date.now() - lastRxTs) / 1000);
+    ui.age.textContent = secs + 's';
+  }
+  setInterval(updateAge, 1000);
+
+  function formatLocalTime(date) {
+    return date.toLocaleString('en-AU', {
+      timeZone: 'Australia/Perth',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      fractionalSecondDigits: 3
+    });
+  }
+
+  function appendLog(direction, data, mode) {
+    const ts = ui.timestamps.checked ? formatLocalTime(new Date()) + ' ' : '';
+    const display = (mode === 'hex') ? toHex(data) : toString(data);
+    const line = ts + (direction === 'rx' ? '< ' : '> ') + display + '\n';
+
+    if (ui.displayMode.value === 'split') {
+      if (direction === 'rx') ui.logRx.value += line; else ui.logTx.value += line;
+      ui.logRx.scrollTop = ui.logRx.scrollHeight;
+      ui.logTx.scrollTop = ui.logTx.scrollHeight;
+    } else {
+      ui.log.value += line;
+      ui.log.scrollTop = ui.log.scrollHeight;
+    }
+    csv.push([new Date().toISOString(), direction, mode, (mode === 'hex' ? toHex(data).trim() : toString(data))]);
+    ui.btnDownload.disabled = csv.length === 0;
+  }
+
+  function toHex(u8) {
+    return Array.from(u8).map(b => b.toString(16).padStart(2, '0')).join(' ').toUpperCase();
+  }
+  function toString(u8) {
+    if (ui.showNonprint.checked) {
+      return Array.from(u8).map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '\\x' + b.toString(16).padStart(2, '0')).join('');
+    }
+    return textDecoder.decode(u8);
+  }
+  function parseHexInput(str) {
+    const clean = str.trim().replace(/[,]/g,' ').replace(/\s+/g,' ');
+    if (!clean) return new Uint8Array([]);
+    const parts = clean.split(' ');
+    const bytes = parts.map(p => {
+      if (!/^[0-9A-Fa-f]{1,2}$/.test(p)) throw new Error('Invalid hex byte: ' + p);
+      return parseInt(p, 16);
+    });
+    return new Uint8Array(bytes);
+  }
+  function applyLineEnding(u8) {
+    const ending = ui.lineEnding.value;
+    if (ending === 'none') return u8;
+    const suffix =
+      ending === 'cr' ? new Uint8Array([13]) :
+      ending === 'lf' ? new Uint8Array([10]) :
+      new Uint8Array([13,10]);
+    const merged = new Uint8Array(u8.length + suffix.length);
+    merged.set(u8); merged.set(suffix, u8.length);
+    return merged;
+  }
+
+  async function connect() {
+    setError('');
+    try {
+      if (!('serial' in navigator)) {
+        setError('Web Serial not supported in this browser. Try a Chromium-based browser on localhost.');
+        return;
+      }
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: parseInt(ui.baud.value, 10) });
+      const readerStream = port.readable.getReader();
+      const writerStream = port.writable.getWriter();
+      reader = readerStream; writer = writerStream;
+      keepReading = true;
+      setStatus(true);
+      ui.support.textContent = '';
+      readLoop().catch(err => setError(err.message));
+    } catch (err) {
+      setError(err.message || String(err));
+      await disconnect();
+    }
+  }
+
+  async function disconnect() {
+    keepReading = false;
+    if (reader) { try { await reader.cancel(); } catch {} try { reader.releaseLock(); } catch {} reader = null; }
+    if (writer) { try { writer.releaseLock(); } catch {} writer = null; }
+    if (port) { try { await port.close(); } catch {} port = null; }
+    setStatus(false);
+  }
+
+  let buffer = '';
+
+  async function readLoop() {
+    while (keepReading && port && reader) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) {
+        const chunk = textDecoder.decode(value);
+        buffer += chunk;
+        let lines = buffer.split(/\r?\n/);
+        buffer = lines.pop();
+        for (const line of lines) {
+          rxCount += line.length;
+          ui.rxBytes.textContent = rxCount;
+          lastRxTs = Date.now();
+          appendLog('rx', new TextEncoder().encode(line), ui.viewMode.value);
+        }
+      }
+    }
+  }
+
+  async function send() {
+    setError('');
+    if (!port || !writer) { setError('Not connected.'); return; }
+    try {
+      let payload;
+      if (ui.sendMode.value === 'hex') {
+        payload = parseHexInput(ui.input.value);
+      } else {
+        payload = textEncoder.encode(ui.input.value);
+      }
+      payload = applyLineEnding(payload);
+      await writer.write(payload);
+      txCount += payload.length;
+      ui.txBytes.textContent = txCount;
+      appendLog('tx', payload, ui.sendMode.value);
+      ui.input.value = '';
+      ui.input.focus();
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  }
+
+  function clearLogs() {
+    ui.log.value = '';
+    ui.logRx.value = '';
+    ui.logTx.value = '';
+    csv.length = 0;
+    ui.btnDownload.disabled = true;
+  }
+
+  function downloadCsv() {
+    const header = 'timestamp,direction,mode,payload\n';
+    const lines = csv.map(row => {
+      const payload = '"' + String(row[3]).replace(/"/g,'""') + '"';
+      return [row[0], row[1], row[2], payload].join(',');
+    }).join('\n');
+    const blob = new Blob([header + lines + '\n'], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'serial-log.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function updateDisplayMode() {
+    const split = ui.displayMode.value === 'split';
+    ui.log.style.display = split ? 'none' : 'block';
+    ui.split.style.display = split ? 'block' : 'none';
+  }
+
+  ui.btnConnect.addEventListener('click', connect);
+  ui.btnDisconnect.addEventListener('click', disconnect);
+  ui.btnSend.addEventListener('click', send);
+  ui.btnClear.addEventListener('click', clearLogs);
+  ui.btnDownload.addEventListener('click', downloadCsv);
+  ui.displayMode.addEventListener('change', updateDisplayMode);
+
+  ui.input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  // Browser support notice
+  if (!('serial' in navigator)) {
+    ui.support.textContent = 'Web Serial unavailable in this browser.';
+  }
+
+  updateDisplayMode();
+    // Hook up command buttons
+document.querySelectorAll('.command-groups button').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!port || !writer) {
+      setError('Not connected.');
+      return;
+    }
+    try {
+      const cmd = btn.dataset.cmd;
+      let payload = textEncoder.encode(cmd + '\n');
+      payload = applyLineEnding(payload);
+      await writer.write(payload);
+
+      txCount += payload.length;
+      ui.txBytes.textContent = txCount;
+      appendLog('tx', payload, ui.sendMode.value);
+
+      // Flash effect for feedback
+      btn.classList.add('flash');
+      setTimeout(() => btn.classList.remove('flash'), 300);
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  });
+});
+})();
+</script>
+</body>
+</html>
