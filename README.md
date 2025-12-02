@@ -69,13 +69,14 @@ This project provides a unified interface to connect, log, calibrate, and contro
 ---
 
 ## 📸 Screenshots & Demo
+
 Here’s what the dashboard looks like in action:
 
 - **Main Dashboard** – Connect/disconnect, live RX/TX logs, and CSV export.  
 - **Command Groups** – Calibration, Diagnostics, History, and Pump Control buttons with flash feedback.  
 - **Split View Mode** – Separate RX/TX panes for clarity.  
 
-👉 *(Add screenshots or animated GIFs here — e.g., `docs/screenshot-dashboard.png`, `docs/demo.gif`)*
+![Dashboard Screenshot](screenshot-dashboard.png)
 
 ---
 
