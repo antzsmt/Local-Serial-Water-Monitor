@@ -1,12 +1,11 @@
 # 🌱 Local Serial Water Monitor
 
 [![GitHub issues](https://img.shields.io/github/issues/antzsmt/Local-Serial-Water-Monitor)](https://github.com/antzsmt/Local-Serial-Water-Monitor/issues)
-[![Release](https://img.shields.io/github/v/release/antzsmt/Local-Serial-Water-Monitor)](https://github.com/antzsmt/Local-Serial-Water-Monitor/releases)
+
 [![Last commit](https://img.shields.io/github/last-commit/antzsmt/Local-Serial-Water-Monitor)](https://github.com/antzsmt/Local-Serial-Water-Monitor/commits/main)
 
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
-![Top language](https://img.shields.io/github/languages/top/antzsmt/Local-Serial-Water-Monitor)
-![Code size](https://img.shields.io/github/languages/code-size/antzsmt/Local-Serial-Water-Monitor)
+
 ![Maintenance](https://img.shields.io/maintenance/yes/2025)
 
 A browser-based **Web Serial dashboard** for monitoring and controlling your Arduino-based watering system.  
